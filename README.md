@@ -4,6 +4,8 @@
 
 * [`latest` _(Dockerfile)_](https://github.com/tiangolo/docker-registry-proxy/blob/master/Dockerfile)
 
+**Note**: There are [tags for each build date](https://hub.docker.com/r/tiangolo/docker-registry-proxy/tags). If you need to "pin" the Docker image version you use, you can select one of those tags. E.g. `tiangolo/docker-registry-proxy:2019-09-27`.
+
 # docker-registry-proxy
 
 Docker Registry Proxy with caching and authentication for **multiple** external Docker Registries.
@@ -19,6 +21,12 @@ If the other machines don't have access to external Internet, you can put this D
 You can also use it to centralize authentication for other Docker Registries. And then the Docker installations in your other machines that use it won't need to have credentials to pull Docker images from private Docker Registries.
 
 You configure the Docker clients once, and then all the configuration is done on the proxy. For this to work, it requires inserting a root CA certificate into the system trusted root certificates in those Docker client machines.
+
+---
+
+**GitHub repo**: [https://github.com/tiangolo/docker-registry-proxy](https://github.com/tiangolo/docker-registry-proxy)
+
+**Docker Hub image**: [https://hub.docker.com/r/tiangolo/docker-registry-proxy/](https://hub.docker.com/r/tiangolo/docker-registry-proxy/)
 
 ## Usage
 
