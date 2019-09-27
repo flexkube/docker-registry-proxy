@@ -1,34 +1,59 @@
-## docker-registry-proxy
+[![Build Status](https://travis-ci.org/tiangolo/docker-registry-proxy.svg?branch=master)](https://travis-ci.org/tiangolo/docker-registry-proxy)
 
-### TL,DR
+## Supported tags and respective `Dockerfile` links
 
-A caching proxy for Docker; allows centralised management of registries and their authentication; caches images from *any* registry.
+* [`latest` _(Dockerfile)_](https://github.com/tiangolo/docker-registry-proxy/blob/master/Dockerfile)
 
-### What?
+# docker-registry-proxy
 
-Created as an evolution and simplification of [docker-caching-proxy-multiple-private](https://github.com/rpardini/docker-caching-proxy-multiple-private) 
-using the `HTTPS_PROXY` mechanism and injected CA root certificates instead of `/etc/hosts` hacks and `--insecure-registry` 
+Docker Registry Proxy with caching and authentication for **multiple** external Docker Registries.
 
-Main feature is Docker layer/image caching, even from S3, Google Storage, etc. As a bonus it allows for centralized management of Docker registry credentials. 
- 
-You configure the Docker clients (_err... Kubernetes Nodes?_) once, and then all configuration is done on the proxy -- 
-for this to work it requires inserting a root CA certificate into system trusted root certs.
+## Description
 
-### Usage
+This creates a Docker Registry proxy with a cache for image layers. You can configure authentication for **multiple** other Docker Registries.
 
-- Run the proxy on a host close to the Docker clients
-- Expose port 3128 to the network
-- Map volume `/docker_mirror_cache` for up to 32gb of cached images from all registries
-- Map volume `/ca`, the proxy will store the CA certificate here across restarts
-- Env `CACHE_MAX_SIZE` (default `32g`): set the max size to be used for caching local Docker image layers. Use [Nginx sizes](http://nginx.org/en/docs/syntax.html).
-- Env `REGISTRIES`: space separated list of registries to cache; no need to include Docker Hub, its already there.
-- Env `AUTH_REGISTRIES`: space separated list of `hostname:username:password` authentication info.
-  - `hostname`s listed here should be listed in the REGISTRIES environment as well, so they can be intercepted.
-  - For Docker Hub authentication, `hostname` should be `auth.docker.io`, username should NOT be an email, use the regular username.
-  - For regular registry auth (HTTP Basic), `hostname` here should be the same... unless your registry uses a different auth server. This should work for quay.io also, but I have no way to test.
-  - Env `AUTH_REGISTRIES_DELIMITER` to change the separator between authentication info. By default, a space: "` `". If you use keys that contain spaces (as with Google Cloud Registry), you should update this variable, e.g. setting it to `AUTH_REGISTRIES_DELIMITER=";;;"`. In that case, `AUTH_REGISTRIES` could contain something like `registry1.com:user1:pass1;;;registry2.com:user2:pass2`.
-  - Env `AUTH_REGISTRY_DELIMITER` to change the separator between authentication info *parts*. By default, a colon: "`:`". If you use keys that contain single colons, you should update this variable, e.g. setting it to `AUTH_REGISTRIES_DELIMITER=":::"`. In that case, `AUTH_REGISTRIES` could contain something like `registry1.com:::user1:::pass1 registry2.com:::user2:::pass2`.
-  - For Google Container Registry (GCR), username should be `_json_key` and the password should be the contents of the service account JSON. Check out [GCR docs](https://cloud.google.com/container-registry/docs/advanced-authentication#json_key_file). The service account key is in JSON format, it contains spaces ("` `") and colons ("`:`"). To be able to use GCR you should set `AUTH_REGISTRIES_DELIMITER` to something different than space (e.g. `AUTH_REGISTRIES_DELIMITER=";;;"`) and `AUTH_REGISTRY_DELIMITER` to something different than a single colon (e.g. `AUTH_REGISTRY_DELIMITER=":::"`).
+Then you configure the Docker daemon in some machines to point to this Docker Registry Proxy, and they will pull their images through it.
+
+If the other machines don't have access to external Internet, you can put this Docker Registry proxy in the middle, in a machine with Internet access, and then pull Docker images through it.
+
+You can also use it to centralize authentication for other Docker Registries. And then the Docker installations in your other machines that use it won't need to have credentials to pull Docker images from private Docker Registries.
+
+You configure the Docker clients once, and then all the configuration is done on the proxy. For this to work, it requires inserting a root CA certificate into the system trusted root certificates in those Docker client machines.
+
+## Usage
+
+* Run this Docker Registry proxy on a host close to the Docker clients.
+    * It can also be the same machine, but make sure to pull and run this image before configuring the Docker client to use it as a proxy.
+* Expose port `3128` to the network.
+* Map volume `/docker_mirror_cache`, it will store the cached Docker images.
+* Map volume `/ca`, the proxy will store the CA certificate here across restarts.
+
+### Environment variables
+
+You can configure it with environment variables:
+
+* `CACHE_MAX_SIZE` (default `32g`, 32 GB): set the max size to be used for caching local Docker image layers. Use [Nginx sizes](http://nginx.org/en/docs/syntax.html).
+* `REGISTRIES`: space separated list of registries to cache. You don't need to include Docker Hub, its already there.
+* `AUTH_REGISTRIES`: list of `hostname:username:password` authentication info *parts*, separated by spaces.
+  * `hostname`s listed here should be listed in the `REGISTRIES` environment as well, so they can be intercepted.
+  * For Docker Hub authentication, `hostname` should be `auth.docker.io`, `username` should NOT be an email, use the regular username.
+  * For regular registry auth (HTTP Basic), `hostname` here should be the same... unless your registry uses a different auth server. This should work for quay.io also, but I have no way to test.
+  * `AUTH_REGISTRIES_DELIMITER`: to change the separator between authentication info *parts*. By default, a space: "` `". If you use keys that contain spaces (as with Google Cloud Registry), you should update this variable, e.g. setting it to `AUTH_REGISTRIES_DELIMITER=";;;"`. In that case, `AUTH_REGISTRIES` could contain something like `registry1.com:user1:pass1;;;registry2.com:user2:pass2`.
+  * `AUTH_REGISTRY_DELIMITER`: to change the separator between authentication info *parts*. By default, a colon: "`:`". If you use keys that contain single colons, you should update this variable, e.g. setting it to `AUTH_REGISTRIES_DELIMITER=":::"`. In that case, `AUTH_REGISTRIES` could contain something like `registry1.com:::user1:::pass1 registry2.com:::user2:::pass2`.
+  
+### Google Container Registry (GCR)
+
+For Google Container Registry (GCR), the `username` should be `_json_key` and the `password` should be the contents of the service account JSON.
+
+Check out [GCR docs](https://cloud.google.com/container-registry/docs/advanced-authentication#json_key_file).
+
+The service account key is in JSON format, it contains spaces ("` `") and colons ("`:`").
+
+To be able to use GCR you should set `AUTH_REGISTRIES_DELIMITER` to something different than space (e.g. `AUTH_REGISTRIES_DELIMITER=";;;"`) and `AUTH_REGISTRY_DELIMITER` to something different than a single colon (e.g. `AUTH_REGISTRY_DELIMITER=":::"`).
+
+### Examples
+
+A simple example:
 
 ```bash
 docker run --rm --name docker_registry_proxy -it \
@@ -37,10 +62,10 @@ docker run --rm --name docker_registry_proxy -it \
        -v $(pwd)/docker_mirror_certs:/ca \
        -e REGISTRIES="k8s.gcr.io gcr.io quay.io your.own.registry another.public.registry" \
        -e AUTH_REGISTRIES="auth.docker.io:dockerhub_username:dockerhub_password your.own.registry:username:password" \
-       rpardini/docker-registry-proxy:0.2.4
+       tiangolo/docker-registry-proxy:latest
 ```
 
-Example with GCR using credentials from a service account from a key file `servicekey.json`:
+An example with GCR using credentials from a service account from a key file `servicekey.json`:
 
 ```bash
 docker run --rm --name docker_registry_proxy -it \
@@ -51,20 +76,20 @@ docker run --rm --name docker_registry_proxy -it \
        -e AUTH_REGISTRIES_DELIMITER=";;;" \
        -e AUTH_REGISTRY_DELIMITER=":::" \
        -e AUTH_REGISTRIES="gcr.io:::_json_key:::$(cat servicekey.json);;;auth.docker.io:::dockerhub_username:::dockerhub_password" \
-       rpardini/docker-registry-proxy:0.2.4
+       tiangolo/docker-registry-proxy:latest
 ```
 
 Let's say you did this on host `192.168.66.72`, you can then `curl http://192.168.66.72:3128/ca.crt` and get the proxy CA certificate.
 
-#### Configuring the Docker clients / Kubernetes nodes
+### Configuring the Docker clients / Kubernetes nodes
 
-On each Docker host that is to use the cache:
+On each Docker host that should use the cache:
 
-- [Configure Docker proxy](https://docs.docker.com/config/daemon/systemd/#httphttps-proxy) pointing to the caching server
-- Add the caching server CA certificate to the list of system trusted roots.
-- Restart `dockerd`
+* [Configure Docker proxy](https://docs.docker.com/config/daemon/systemd/#httphttps-proxy) pointing to the caching server.
+* Add the caching server CA certificate to the list of system trusted roots.
+* Restart the Docker daemon.
 
-Do it all at once, tested on Ubuntu Xenial, which is systemd based:
+Do it all at once, tested on Ubuntu Xenial, which is uses SystemD:
 
 ```bash
 # Add environment vars pointing Docker to use the proxy
@@ -87,9 +112,9 @@ systemctl daemon-reload
 systemctl restart docker.service
 ```
 
-### Testing
+## Testing
 
-Clear `dockerd` of everything not currently running: `docker system prune -a -f` *beware*
+Clear `dockerd` of everything not currently running: `docker system prune -a -f` *beware*.
 
 Then do, for example, `docker pull k8s.gcr.io/kube-proxy-amd64:v1.10.4` and watch the logs on the caching proxy, it should list a lot of MISSes.
 
@@ -99,34 +124,34 @@ Do the same for `docker pull ubuntu` and rejoice.
 
 Test your own registry caching and authentication the same way; you don't need `docker login`, or `.docker/config.json` anymore.
 
-### Gotchas
+## Gotchas
 
-- If you authenticate to a private registry and pull through the proxy, those images will be served to any client that can reach the proxy, even without authentication. *beware*
-- Repeat, this will make your private images very public if you're not careful.
-- **Currently you cannot push images while using the proxy** which is a shame. PRs welcome.
-- Setting this on Linux is relatively easy. On Mac and Windows the CA-certificate part will be very different but should work in principle.
+* If you authenticate to a private registry and pull through the proxy, those images will be served to any client that can reach the proxy, even without authentication. *beware*
+ Repeat, this will make your private images very public if you're not careful.
+* **Currently you cannot push images while using the proxy** which is a shame. PRs welcome.
+* Setting this on Linux is relatively easy. On Mac and Windows the CA-certificate part will be very different but should work in principle.
 
-#### Why not use Docker's own registry, which has a mirror feature?
+### Why not use Docker's own registry, which has a mirror feature?
 
-Yes, Docker offers [Registry as a pull through cache](https://docs.docker.com/registry/recipes/mirror/), *unfortunately* 
-it only covers the DockerHub case. It won't cache images from `quay.io`, `k8s.gcr.io`, `gcr.io`, or any such, including any private registries.
+Yes, Docker offers [Registry as a pull through cache](https://docs.docker.com/registry/recipes/mirror/), *unfortunately* it only covers the DockerHub case. It won't cache images from `quay.io`, `k8s.gcr.io`, `gcr.io`, or any such, including any private registries.
 
-That means that your shiny new Kubernetes cluster is now a bandwidth hog, since every image will be pulled from the 
-Internet on every Node it runs on, with no reuse.
+This is due to the way the Docker "client" implements `--registry-mirror`, it only ever contacts mirrors for images with no repository reference (eg, from DockerHub).
+When a repository is specified `dockerd` goes directly there, via HTTPS (and also via HTTP if included in a `--insecure-registry` list), thus completely ignoring the configured mirror.
 
-This is due to the way the Docker "client" implements `--registry-mirror`, it only ever contacts mirrors for images 
-with no repository reference (eg, from DockerHub).
-When a repository is specified `dockerd` goes directly there, via HTTPS (and also via HTTP if included in a 
-`--insecure-registry` list), thus completely ignoring the configured mirror.
-
-#### Docker itself should provide this.
+### Docker itself should provide this
 
 Yeah. Docker Inc should do it. So should NPM, Inc. Wonder why they don't. 😼
 
-### TODO:
+## TODO
 
-- Allow using multiple credentials for DockerHub; this is possible since the `/token` request includes the wanted repo as a query string parameter.
-- Test and make auth work with quay.io, unfortunately I don't have access to it (_hint, hint, quay_)
-- Hide the mitmproxy building code under a Docker build ARG.
-- I hope that in the future this can also be used as a "Developer Office" proxy, where many developers on a fast local network
+* Allow using multiple credentials for DockerHub; this is possible since the `/token` request includes the wanted repo as a query string parameter.
+* Test and make auth work with quay.io, unfortunately I don't have access to it (_hint, hint, quay_)
+* Hide the mitmproxy building code under a Docker build ARG.
+* I hope that in the future this can also be used as a "Developer Office" proxy, where many developers on a fast local network
   share a proxy for bandwidth and speed savings; work is ongoing in this direction.
+
+## Note about original work
+
+This project is based on the original work at https://github.com/rpardini/docker-registry-proxy
+
+This version fixes some issues (e.g. support for Google Cloud Registry) and adds some features (e.g. custom cache size).
